@@ -20,10 +20,10 @@ class ads5296x4(YellowBlock):
         self.line_clock_freq_mhz = self.adc_resolution * self.sample_rate / self.lanes_per_channel / 2.0
         self.logger.info("ADC {0} has line clock {1} MHz".format(self.name, self.line_clock_freq_mhz))
 
-        self.add_source('ads5296x4_interface_v2/ads5296x4_interface_demux4.v')
-        self.add_source('ads5296x4_interface_v2/ads5296_unit_demux4.v')
-        self.add_source('ads5296x4_interface_v2/wb_ads5296_attach.v')
-        self.add_source('ads5296x4_interface_v2/data_fifo.xci')
+        self.add_source('ads5296x4_interface_v3/ads5296x4_interface_demux4.v')
+        self.add_source('ads5296x4_interface_v3/ads5296_unit_demux4.v')
+        self.add_source('ads5296x4_interface_v3/wb_ads5296_attach.v')
+        self.add_source('ads5296x4_interface_v3/data_fifo.xci')
         self.add_source('spi_master/spi_master.v')
         self.add_source('spi_master/wb_spi_master.v')
         self.provides = ['adc%d_clk' % self.port, 'adc%d_clk90' % self.port, 'adc%d_clk180' % self.port, 'adc%d_clk270' % self.port]
@@ -40,7 +40,7 @@ class ads5296x4(YellowBlock):
 
     def modify_top(self,top):
         # Connect up the reset register
-        module = 'ads5296x4_interface_v2'
+        module = 'ads5296x4_interface_v3'
         for b in range(self.board_count):
             inst = top.get_instance(entity=module, name="%s_%d" % (self.fullname, b))
             inst.add_wb_interface(nbytes=16*4, regname='ads5296_controller%d_%d' % (self.port, b), mode='rw', typecode=self.typecode)
@@ -78,16 +78,19 @@ class ads5296x4(YellowBlock):
                 top.assign_signal('%s_%d_fclk_p[2]' % (self.fullname, b), '%s_%d_fclk2_p' % (self.port_prefix, b))
                 top.assign_signal('%s_%d_fclk_n[2]' % (self.fullname, b), '%s_%d_fclk2_n' % (self.port_prefix, b))
             inst.add_port('sclk', 'user_clk')
+            inst.add_port('clk4b', 'adc%d_4b_clk' % self.port) #TODO this won't work with 2 FMCs
             inst.add_port('din_p', '%s_%d_din_p' % (self.port_prefix, b), parent_port=True, width=self.num_units_per_board*self.lanes_per_unit, dir='in')
             inst.add_port('din_n', '%s_%d_din_n' % (self.port_prefix, b), parent_port=True, width=self.num_units_per_board*self.lanes_per_unit, dir='in')
             inst.add_port('dout', '%s_%d_dout' % (self.fullname, b), width=self.adc_resolution*self.num_units_per_board*self.channels_per_unit)
             if b == self.clock_source:
                 inst.add_parameter("G_IS_MASTER", "1'b1")
-                inst.add_port('clk_out', 'adc%d_clk' % self.port)
+                inst.add_port('sclk_out', 'adc%d_clk' % self.port)
+                inst.add_port('clk4b_out', 'adc%d_4b_clk' % self.port)
                 inst.add_port('sync_out', '%s_adc_sync_out' % self.fullname)
             else:
                 inst.add_parameter("G_IS_MASTER", "1'b0")
-                inst.add_port('clk_out', '')
+                inst.add_port('sclk_out', '')
+                inst.add_port('clk4b_out', '')
                 inst.add_port('sync_out', '')
 
             # split out the ports which go to simulink
